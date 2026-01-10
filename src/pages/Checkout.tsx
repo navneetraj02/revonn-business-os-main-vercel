@@ -43,19 +43,49 @@ export default function Checkout() {
         return;
       }
 
-      // 1. Create Payment (Stub)
-      // For stub, we just pass dummy mobile number as we don't have it easily here
-      const response = await initiatePhonePePayment(total, user.uid, "0000000000");
+      // 1. Create Payment
+      // Use user's phone number if available, otherwise fallback (PhonePe requires 10 digits)
+      const mobileNumber = user.phoneNumber ? user.phoneNumber.replace('+91', '') : "9999999999";
 
-      if (response.success && response.transactionId) {
-        // Simulation: Direct success flow
-        toast.success(isHindi ? 'सिमुलेशन: भुगतान सफल' : 'Simulation: Payment Successful');
-        verifyPaymentStatus(response.transactionId);
+      const response = await initiatePhonePePayment(total, user.uid, mobileNumber);
+
+      const pendingData = {
+        transactionId: response.transactionId,
+        plan,
+        billingCycle,
+        amount: total,
+        userId: user.uid,
+        timestamp: Date.now()
+      };
+
+      localStorage.setItem('pendingTransaction', JSON.stringify(pendingData));
+
+      if (response.success) {
+        if (response.url) {
+          // Real payment flow: Redirect to PhonePe
+          window.location.href = response.url;
+          return;
+        } else if (response.transactionId) {
+          // Simulation: Direct success flow
+          toast.success(isHindi ? 'सिमुलेशन: भुगतान सफल' : 'Simulation: Payment Successful');
+          // For simulation, we skip backend verification because the backend won't know about this fake transactionId
+          setTimeout(() => {
+            navigate('/payment-status', {
+              state: {
+                status: 'success',
+                transactionId: response.transactionId,
+                message: 'Simulation: Payment successful'
+              }
+            });
+          }, 1000);
+        }
       } else {
+        localStorage.removeItem('pendingTransaction');
         throw new Error('Payment initiation failed');
       }
 
     } catch (error: any) {
+      localStorage.removeItem('pendingTransaction');
       console.error('Payment error:', error);
       const msg = error.message || (isHindi ? 'पेमेंट शुरू करने में त्रुटि' : 'Error initiating payment');
       toast.error(msg);

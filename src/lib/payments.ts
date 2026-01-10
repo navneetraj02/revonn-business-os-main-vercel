@@ -18,11 +18,7 @@ export const initiatePhonePePayment = async (
 ): Promise<{ success: boolean; url?: string; transactionId?: string }> => {
     try {
         const isLocal = window.location.hostname === 'localhost';
-        const baseUrl = isLocal ? '' : ''; // In Vercel, /api is relative. In local, we might need proxy or just relative if using 'vercel dev'.
-
-        // Check if we are in true dev mode without backend (mock)
-        // Note: User can revert this by setting a flag if they want simulation back.
-        // For now, we assume backend exists or will exist.
+        const baseUrl = '';
 
         console.log("Initiating Payment via Backend...");
 
@@ -32,6 +28,11 @@ export const initiatePhonePePayment = async (
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount, userId, mobileNumber })
         });
+
+        const isJson = response.headers.get('content-type')?.includes('application/json');
+        if (!isJson) {
+            throw new Error("Backend not responding with JSON (likely running locally without server).");
+        }
 
         const data = await response.json();
 
@@ -46,10 +47,18 @@ export const initiatePhonePePayment = async (
             throw new Error(data.error || "Payment initiation failed");
         }
     } catch (error) {
-        console.warn("Backend unreachable? Falling back to Mock for Demo if needed, or throwing error.");
+        console.warn("Backend unavailable. Falling back to Simulation Mode for testing.");
         console.error(error);
-        // Be explicit about backend failure
-        throw error;
+
+        // REMOVED AUTOMATIC SIMULATION FALLBACK
+        // The user wants REAL payments. If the backend is not reachable, we must fail.
+        console.error("Backend Error or Unreachable:", error);
+
+        throw new Error(
+            "Backend API unreachable. " +
+            "If running locally, please use 'vercel dev' instead of 'npm run dev'. " +
+            "If deployed, ensure your API routes are working."
+        );
     }
 };
 

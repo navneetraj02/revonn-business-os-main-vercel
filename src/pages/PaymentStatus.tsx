@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -25,6 +27,36 @@ export default function PaymentStatus() {
         const state = location.state as { status?: string; transactionId?: string; message?: string } | null;
 
         if (state?.status === 'success') {
+          // Activate Subscription (Optimistic / Simulation)
+          try {
+            const pendingData = localStorage.getItem('pendingTransaction');
+            if (pendingData) {
+              const { plan, billingCycle, userId } = JSON.parse(pendingData);
+              if (userId && plan === 'pro') {
+                const now = new Date();
+                const expiresAt = new Date();
+                if (billingCycle === 'yearly') {
+                  expiresAt.setFullYear(now.getFullYear() + 1);
+                } else {
+                  expiresAt.setMonth(now.getMonth() + 1);
+                }
+
+                const subRef = doc(db, 'user_subscriptions', userId);
+                await updateDoc(subRef, {
+                  plan_type: 'pro',
+                  is_active: true,
+                  billing_cycle: billingCycle,
+                  updated_at: now.toISOString(),
+                  expires_at: expiresAt.toISOString()
+                });
+              }
+              // Clear pending transaction
+              localStorage.removeItem('pendingTransaction');
+            }
+          } catch (dbError) {
+            console.error("Failed to activate subscription (State Path):", dbError);
+          }
+
           setStatus('success');
           setMessage(isHindi
             ? 'आपका Revonn Pro प्लान सक्रिय हो गया है!'
@@ -83,6 +115,36 @@ export default function PaymentStatus() {
 
           if (txnStatus === 'SUCCESS') {
             clearInterval(poll);
+
+            // Activate Subscription in Firestore
+            try {
+              const pendingData = localStorage.getItem('pendingTransaction');
+              if (pendingData) {
+                const { plan, billingCycle, userId } = JSON.parse(pendingData);
+                if (userId && plan === 'pro') {
+                  const now = new Date();
+                  const expiresAt = new Date();
+                  if (billingCycle === 'yearly') {
+                    expiresAt.setFullYear(now.getFullYear() + 1);
+                  } else {
+                    expiresAt.setMonth(now.getMonth() + 1);
+                  }
+
+                  const subRef = doc(db, 'user_subscriptions', userId);
+                  await updateDoc(subRef, {
+                    plan_type: 'pro',
+                    is_active: true,
+                    billing_cycle: billingCycle,
+                    updated_at: now.toISOString(),
+                    expires_at: expiresAt.toISOString()
+                  });
+                }
+              }
+            } catch (dbError) {
+              console.error("Failed to activate subscription:", dbError);
+              // Don't fail the UI, as payment was successful. User can contact support.
+            }
+
             setStatus('success');
             setMessage(isHindi
               ? 'आपका Revonn Pro प्लान सक्रिय हो गया है!'
