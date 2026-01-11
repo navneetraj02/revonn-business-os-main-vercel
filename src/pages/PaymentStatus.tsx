@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from "sonner";
 import { useNavigate, useLocation } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -113,6 +114,7 @@ export default function PaymentStatus() {
           }
 
 
+
           if (txnStatus === 'SUCCESS') {
             clearInterval(poll);
 
@@ -138,11 +140,12 @@ export default function PaymentStatus() {
                     updated_at: now.toISOString(),
                     expires_at: expiresAt.toISOString()
                   });
+                  console.log("Subscription Activated for User:", userId);
                 }
               }
             } catch (dbError) {
               console.error("Failed to activate subscription:", dbError);
-              // Don't fail the UI, as payment was successful. User can contact support.
+              toast.error("Payment successful but activation failed. Contact support.");
             }
 
             setStatus('success');
