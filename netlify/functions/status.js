@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 /**
  * Fetches the OAuth Access Token from PhonePe
@@ -33,10 +33,10 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
     }
 }
 
-exports.handler = async function (event, context) {
+export const handler = async function (event, context) {
     const headers = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Verify, X-Merchant-Id',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Verify, X-Merchant-Id, Authorization',
         'Access-Control-Allow-Methods': 'GET, OPTIONS'
     };
 
