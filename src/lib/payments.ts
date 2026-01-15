@@ -14,7 +14,10 @@ export const initiatePhonePePayment = async (
         console.log("Initiating Payment via Backend...");
 
         // Call Vercel Backend Function
-        const response = await fetch('/api/initiate', {
+        const apiUrl = '/api/initiate';
+        console.log(`Sending request to: ${window.location.origin}${apiUrl}`);
+
+        const response = await fetch(apiUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount, userId, mobileNumber })

@@ -9,13 +9,6 @@ import webhook from './api/webhook.js';
 dotenv.config({ path: '.env.local' });
 dotenv.config(); // Fallback to .env
 
-// FORCE PROVIDED CREDENTIALS (Production - SU Key)
-console.log("⚠️  Using User-Provided Production Credentials (SU...)");
-process.env.PHONEPE_ENV = 'production';
-process.env.PHONEPE_MERCHANT_ID = 'SU2512221950401083318722';
-process.env.PHONEPE_SALT_KEY = '8711b0c3-fa11-423c-825d-526696307e07';
-process.env.PHONEPE_SALT_INDEX = '1';
-
 const app = express();
 const PORT = 3000; // Standard Vercel port
 
