@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { auth } from '@/lib/firebase';
-import { genAI } from '@/lib/ai';
+import { GEMINI_API_KEY } from '@/lib/ai';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { useAppStore } from '@/store/app-store';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
@@ -63,6 +64,7 @@ export default function Marketing() {
       }
 
       // 1. Text Generation
+      const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
       const prompt = `You are a professional marketing copywriter for a shop called "${shopSettings.shopName}".
       The user wants: "${userPrompt}".

@@ -7,6 +7,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { auth } from '@/lib/firebase';
 import { SubscriptionProvider } from '@/contexts/SubscriptionContext';
 import { LanguageProvider } from '@/contexts/LanguageContext';
+import { ThemeProvider } from "@/contexts/ThemeContext"
+import { MainLayout } from '@/components/layout/MainLayout';
+import Home from "./pages/Home";
 import Splash from "./pages/Splash";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -98,54 +101,65 @@ function AppContent() {
 
   return (
     <Routes>
-      <Route path="/" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth" replace />} />
-      <Route path="/auth" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Auth />} />
-      <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/auth" replace />} />
-      <Route path="/inventory" element={isAuthenticated ? <Inventory /> : <Navigate to="/auth" replace />} />
-      <Route path="/inventory/:id" element={isAuthenticated ? <InventoryDetail /> : <Navigate to="/auth" replace />} />
-      <Route path="/inventory/upload" element={isAuthenticated ? <BOMUpload /> : <Navigate to="/auth" replace />} />
-      <Route path="/inventory/add" element={isAuthenticated ? <BOMUpload /> : <Navigate to="/auth" replace />} />
-      <Route path="/customers" element={isAuthenticated ? <Customers /> : <Navigate to="/auth" replace />} />
-      <Route path="/customers/add" element={isAuthenticated ? <CustomerAdd /> : <Navigate to="/auth" replace />} />
-      <Route path="/customers/:id" element={isAuthenticated ? <CustomerDetail /> : <Navigate to="/auth" replace />} />
-      <Route path="/reports" element={isAuthenticated ? <Reports /> : <Navigate to="/auth" replace />} />
-      <Route path="/invoices/:id" element={isAuthenticated ? <InvoiceDetail /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings" element={isAuthenticated ? <Settings /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings/shop" element={isAuthenticated ? <SettingsShop /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings/ai" element={isAuthenticated ? <SettingsAI /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings/invoice" element={isAuthenticated ? <SettingsInvoice /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings/notifications" element={isAuthenticated ? <SettingsNotifications /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings/sync" element={isAuthenticated ? <SettingsSync /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings/privacy" element={isAuthenticated ? <SettingsPrivacy /> : <Navigate to="/auth" replace />} />
-      <Route path="/settings/pricing" element={isAuthenticated ? <SettingsPricing /> : <Navigate to="/auth" replace />} />
-      <Route path="/checkout" element={isAuthenticated ? <Checkout /> : <Navigate to="/auth" replace />} />
+      <Route element={isAuthenticated ? <MainLayout /> : <Navigate to="/auth" replace />}>
+        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/inventory" element={<Inventory />} />
+        <Route path="/inventory/:id" element={<InventoryDetail />} />
+        <Route path="/inventory/upload" element={<BOMUpload />} />
+        <Route path="/inventory/add" element={<BOMUpload />} />
+        <Route path="/customers" element={<Customers />} />
+        <Route path="/customers/add" element={<CustomerAdd />} />
+        <Route path="/customers/:id" element={<CustomerDetail />} />
+        <Route path="/reports" element={<Reports />} />
+        <Route path="/invoices/:id" element={<InvoiceDetail />} />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/settings/shop" element={<SettingsShop />} />
+        <Route path="/settings/ai" element={<SettingsAI />} />
+        <Route path="/settings/invoice" element={<SettingsInvoice />} />
+        <Route path="/settings/notifications" element={<SettingsNotifications />} />
+        <Route path="/settings/sync" element={<SettingsSync />} />
+        <Route path="/settings/privacy" element={<SettingsPrivacy />} />
+        <Route path="/settings/pricing" element={<SettingsPricing />} />
+        <Route path="/billing" element={<Billing />} />
+        <Route path="/billing/new" element={<Billing />} />
+        <Route path="/staff" element={<Staff />} />
+        <Route path="/marketing" element={<Marketing />} />
+        <Route path="/subscription" element={<SubscriptionPlans />} />
+        <Route path="/payment-status" element={<PaymentStatus />} />
+        <Route path="/help" element={<Help />} />
+        <Route path="/checkout" element={<Checkout />} />
+      </Route>
+      <Route path="/auth" element={isAuthenticated ? <Navigate to="/home" replace /> : <Auth />} />
       <Route path="/policy/terms" element={<PolicyTerms />} />
       <Route path="/policy/refund" element={<PolicyRefund />} />
       <Route path="/policy/privacy" element={<PolicyPrivacy />} />
-      <Route path="/help" element={isAuthenticated ? <Help /> : <Navigate to="/auth" replace />} />
-      <Route path="/billing" element={isAuthenticated ? <Billing /> : <Navigate to="/auth" replace />} />
-      <Route path="/billing/new" element={isAuthenticated ? <Billing /> : <Navigate to="/auth" replace />} />
-      <Route path="/staff" element={isAuthenticated ? <Staff /> : <Navigate to="/auth" replace />} />
-      <Route path="/marketing" element={isAuthenticated ? <Marketing /> : <Navigate to="/auth" replace />} />
-      <Route path="/subscription" element={isAuthenticated ? <SubscriptionPlans /> : <Navigate to="/auth" replace />} />
-      <Route path="/payment-status" element={isAuthenticated ? <PaymentStatus /> : <Navigate to="/auth" replace />} />
       <Route path="*" element={<NotFound />} />
-    </Routes>
+    </Routes >
   );
 }
+
+import { AuthProvider } from '@/contexts/AuthContext';
+
+// ... (existing imports)
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <LanguageProvider>
-        <SubscriptionProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </SubscriptionProvider>
-      </LanguageProvider>
+      <ThemeProvider defaultTheme="dark" storageKey="revonn-ui-theme">
+        <LanguageProvider>
+          <AuthProvider>
+            <SubscriptionProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppContent />
+              </BrowserRouter>
+            </SubscriptionProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

@@ -14,11 +14,11 @@ export function AppLayout({ children, title, hideNav }: AppLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       <Header title={title} />
-      
-      <main className="pb-24">
+
+      <main className="pb-24 animate-fade-in">
         {children}
       </main>
-      
+
       {!hideNav && <BottomNav />}
       <AIFloatingButton />
       <AIAssistant />

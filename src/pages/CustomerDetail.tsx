@@ -11,7 +11,7 @@ import {
   Send
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -51,7 +51,17 @@ export default function CustomerDetail() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadCustomer();
+    // Wrap in Auth Listener to ensure connection before query
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (user) {
+        loadCustomer();
+      } else {
+        // Handle case where user is not logged in (optional, or redirect)
+        setIsLoading(false);
+      }
+    });
+
+    return () => unsubscribeAuth();
   }, [id]);
 
   const loadCustomer = async () => {
@@ -69,11 +79,11 @@ export default function CustomerDetail() {
       setCustomer({ id: docSnap.id, ...docSnap.data() } as Customer);
 
       // Load customer invoices
+      // PERF FIX: Remove orderBy to avoid "Composite Index" error. Sort in memory.
       const invoicesRef = collection(db, 'invoices');
       const q = query(
         invoicesRef,
-        where('customer_id', '==', id),
-        orderBy('created_at', 'desc')
+        where('customerId', '==', id)
       );
 
       const querySnapshot = await getDocs(q);
@@ -81,6 +91,9 @@ export default function CustomerDetail() {
       querySnapshot.forEach((doc) => {
         invoiceData.push({ id: doc.id, ...doc.data() } as Invoice);
       });
+
+      // Client-side sort
+      invoiceData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       setInvoices(invoiceData);
     } catch (error) {

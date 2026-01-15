@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   ChevronLeft,
   Store,
   FileText,
@@ -21,12 +21,13 @@ import { exportBackup, importBackup } from '@/lib/database';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { auth } from '@/lib/firebase';
 
 export default function Settings() {
   const navigate = useNavigate();
   const { shopSettings, setShopSettings } = useAppStore();
   const [isExporting, setIsExporting] = useState(false);
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
 
   const handleExportBackup = async () => {
     setIsExporting(true);
@@ -54,7 +55,7 @@ export default function Settings() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-      
+
       try {
         const text = await file.text();
         const result = await importBackup(text);
@@ -112,7 +113,7 @@ export default function Settings() {
       <div className="px-4 py-4 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={() => navigate(-1)}
             className="p-2 rounded-xl bg-secondary"
           >
@@ -134,6 +135,45 @@ export default function Settings() {
           </div>
         </div>
 
+        {/* Language Selection */}
+        <div className="p-4 rounded-xl bg-card border border-border">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-secondary">
+                <div className="w-4 h-4 text-muted-foreground font-bold flex items-center justify-center">Aa</div>
+              </div>
+              <div>
+                <p className="font-medium text-foreground">{t('language') || 'Language'}</p>
+                <p className="text-xs text-muted-foreground">{t('select_language') || 'Choose app language'}</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setLanguage('en')}
+              className={cn(
+                "py-2 px-3 rounded-lg text-sm font-medium border transition-all",
+                language === 'en'
+                  ? "bg-primary/10 border-primary text-primary"
+                  : "bg-secondary border-transparent text-muted-foreground hover:bg-secondary/80"
+              )}
+            >
+              English
+            </button>
+            <button
+              onClick={() => setLanguage('hi')}
+              className={cn(
+                "py-2 px-3 rounded-lg text-sm font-medium border transition-all",
+                language === 'hi'
+                  ? "bg-primary/10 border-primary text-primary"
+                  : "bg-secondary border-transparent text-muted-foreground hover:bg-secondary/80"
+              )}
+            >
+              हिंदी (Hindi)
+            </button>
+          </div>
+        </div>
+
         {/* Settings Sections */}
         {sections.map((section) => (
           <div key={section.title}>
@@ -147,6 +187,7 @@ export default function Settings() {
                   onClick={() => {
                     if (item.action === 'backup') {
                       // Show backup options
+                      setIsExporting(false); // Just placeholder logic
                     } else if (item.path) {
                       navigate(item.path);
                     }
@@ -189,9 +230,23 @@ export default function Settings() {
           </button>
         </div>
 
+        {/* Logout Button */}
+        <button
+          onClick={async () => {
+            try {
+              await auth.signOut();
+              localStorage.removeItem('revonn-staff-session');
+              window.location.href = '/auth';
+            } catch (e) { console.error(e); }
+          }}
+          className="w-full py-3 rounded-xl bg-destructive/10 text-destructive font-medium border border-destructive/20 hover:bg-destructive/20 transition-colors"
+        >
+          {t('logout') || 'Log Out'}
+        </button>
+
         {/* Version */}
         <p className="text-center text-xs text-muted-foreground">
-          Revonn v1.0.0 • Phase 1
+          Revonn v2.0 • AI-First Business OS
         </p>
       </div>
     </AppLayout>

@@ -43,7 +43,8 @@ interface InvoiceData {
   subtotal: number;
   tax_amount: number;
   discount: number;
-  total: number;
+  total?: number;
+  grandTotal?: number; // Compat
   payment_mode: string;
   amount_paid: number;
   due_amount: number;
@@ -298,7 +299,7 @@ export default function InvoiceDetail() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.text('GRAND TOTAL:', totalsX, y + 4);
-    doc.text(`₹${formatNumber(invoice.total)}`, totalsX + 50, y + 4);
+    doc.text(`₹${formatNumber(invoice.total || invoice.grandTotal || 0)}`, totalsX + 50, y + 4);
     y += 18;
 
     // ===== PAYMENT INFO =====
@@ -502,7 +503,7 @@ export default function InvoiceDetail() {
 
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">{t('subtotal')}</span>
-            <span>{formatCurrency(invoice.subtotal || invoice.total)}</span>
+            <span>{formatCurrency(invoice.subtotal || invoice.total || invoice.grandTotal || 0)}</span>
           </div>
 
           {invoice.discount > 0 && (
@@ -521,7 +522,7 @@ export default function InvoiceDetail() {
 
           <div className="pt-3 border-t border-border flex justify-between">
             <span className="text-lg font-bold text-foreground">{t('grand_total')}</span>
-            <span className="text-lg font-bold text-primary">{formatCurrency(invoice.total)}</span>
+            <span className="text-lg font-bold text-primary">{formatCurrency(invoice.total || invoice.grandTotal || 0)}</span>
           </div>
 
           <div className="flex justify-between text-sm pt-2">

@@ -200,6 +200,7 @@ export interface AIMessage {
   content: string;
   timestamp: Date;
   action?: AIAction;
+  image?: string;
 }
 
 export interface AIAction {

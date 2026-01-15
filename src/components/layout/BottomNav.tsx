@@ -42,7 +42,7 @@ export function BottomNav() {
         <MessageSquare className="w-6 h-6 text-primary-foreground" />
       </button>
 
-      <nav className="fixed bottom-0 inset-x-0 z-30 px-4 pb-4">
+      <nav className="fixed bottom-0 inset-x-0 z-30 px-4 pb-4 md:hidden">
         <div className="bg-card/95 backdrop-blur-md rounded-2xl border border-border shadow-lg">
           <div className="flex items-center justify-around py-2">
             {navItems.map(({ icon: Icon, label, path, permission }) => {

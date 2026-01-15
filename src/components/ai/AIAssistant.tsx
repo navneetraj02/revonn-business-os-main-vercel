@@ -1,15 +1,15 @@
+
 import { useState, useRef, useEffect } from 'react';
-import { X, Send, Mic, MicOff, Sparkles, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Send, Mic, MicOff, Sparkles, Loader2, Maximize2, Minimize2, Plus, Image as ImageIcon, Camera } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '@/store/app-store';
 import { useVoiceRecognition, speakText } from '@/hooks/useVoiceRecognition';
 import { auth } from '@/lib/firebase';
-import { genAI } from '@/lib/ai';
 import type { AIMessage } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, compressImage } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { generateAIResponse, getShopContext } from '@/lib/ai-assistant';
+import { generateAIResponse, getShopContext, generateMultimodalResponse, SimpleMessage } from '@/lib/ai-assistant';
 import { aiActions, aiTools } from '@/lib/ai-actions';
 
 
@@ -31,8 +31,12 @@ export function AIAssistant() {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showAttachOptions, setShowAttachOptions] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const { isListening, isSupported, transcript, toggleListening, stopListening } = useVoiceRecognition({
     lang: isHindi ? 'hi-IN' : 'en-IN',
@@ -62,6 +66,24 @@ export function AIAssistant() {
     return hindiPattern.test(text) ? 'hindi' : 'english';
   };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+        setShowAttachOptions(false);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearImage = () => {
+    setSelectedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+  };
+
 
 
   const handleSend = async (textToSend?: string) => {
@@ -72,7 +94,8 @@ export function AIAssistant() {
       id: Date.now().toString(),
       role: 'user',
       content: messageText,
-      timestamp: new Date()
+      timestamp: new Date(),
+      image: selectedImage || undefined
     };
 
     setMessages(prev => [...prev, userMessage]);
@@ -83,15 +106,18 @@ export function AIAssistant() {
       const user = auth.currentUser;
       if (!user) throw new Error('Not authenticated');
 
-      // 1. Try Local Business Logic First
+      // 1. Try Local Business Logic First (ONLY if no image)
       // This checks for intents like "Stock check", "Sales report", "Create bill", etc.
       // passing the message to the intent detector in ai-assistant.ts
 
-      const localResult = await generateAIResponse(messageText);
+      let localResult = { intent: 'unknown', response: '' };
+      if (!selectedImage) {
+        localResult = await generateAIResponse(messageText);
+      }
 
       // If we found a specific business intent (not 'unknown' and not just a generic 'greeting' that we want LLM to handle better),
       // use the local response which has real DB data.
-      if (localResult.intent !== 'unknown' && localResult.intent !== 'greeting') {
+      if (!selectedImage && localResult.intent !== 'unknown' && localResult.intent !== 'greeting') {
         const assistantMessage: AIMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -110,76 +136,36 @@ export function AIAssistant() {
       // 2. Fetch Live Context
       const shopContext = await getShopContext();
 
-      // 3. Fallback to Gemini LLM with Tools & Context
-      // Use Gemini Client-side but enforce business context
-      const model = genAI.getGenerativeModel({
-        model: "gemini-flash-latest",
-        systemInstruction: `You are a professional business assistant for a retail shop management app called Revonn. 
-        
-        CONTEXT:
-        ${shopContext}
-        
-        RULES:
-        - You ONLY answer questions related to business, retail, inventory, sales, marketing, shop management, GST, billing, and customer relations. 
-        - If the user asks about general topics unrelated to business, politely refuse.
-        - You have access to TOOLS to perform actions like creating invoices, adding stock, etc. USE THEM automatically when the user asks to do something.
-        - When creating an invoice:
-           - If something is missing (like price), make a reasonable assumption (e.g. 0) or use context if available.
-        - Keep answers concise and professional.`,
-        tools: aiTools,
-        toolConfig: { functionCallingConfig: { mode: "AUTO" as any } }
-      });
-
+      // 3. Fallback to Groq Vision/Llama 3 with Tools & Context
+      let responseText = "";
       const chatHistory = messages.filter(m => m.id !== '1').map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }]
-      }));
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.content
+      })) as SimpleMessage[];
 
-      const chat = model.startChat({
-        history: chatHistory,
-      });
+      if (selectedImage) {
+        // Handle Multimodal Request via Groq Vision
+        const compressedImage = await compressImage(selectedImage);
+        const visionResponse = await generateMultimodalResponse(messageText, compressedImage, chatHistory);
+        responseText = visionResponse.response;
 
-      let result = await chat.sendMessage(messageText);
-      let response = await result.response;
-
-      // Loop for Function Calls
-      const functionCalls = response.functionCalls();
-
-      if (functionCalls && functionCalls.length > 0) {
-        // We have a function call!
-        const call = functionCalls[0]; // Handle first call
-        const { name, args } = call;
-
-        // Show "Working..." status
-        const loadingMsgId = (Date.now()).toString();
-        setMessages(prev => [...prev, {
-          id: loadingMsgId,
-          role: 'assistant',
-          content: `🔄 Processing ${name.replace(/_/g, ' ')}...`,
-          timestamp: new Date()
-        }]);
-
-        const actionResult = await aiActions.executeToolCall(name, args);
-
-        // Trigger App-wide Refresh for Real-time AI updates
-        if (actionResult.success) {
+        // Actions are already executed inside generateMultimodalResponse
+        if (visionResponse.action && visionResponse.action.type !== 'none') {
           window.dispatchEvent(new CustomEvent('revonn-data-update'));
         }
 
-        // Send result back to model
-        result = await chat.sendMessage([{
-          functionResponse: {
-            name: name,
-            response: actionResult
-          }
-        }]);
-        response = await result.response;
+        setSelectedImage(null);
 
-        // Remove the temporary "Processing" message
-        setMessages(prev => prev.filter(m => m.id !== loadingMsgId));
+      } else {
+        // --- TEXT ONLY FLOW ---
+        // Use generateAIResponse which uses Groq Llama 3 from lib/ai-assistant.ts
+        const aiRes = await generateAIResponse(messageText, chatHistory);
+        responseText = aiRes.response;
+        // Actions handled inside generateAIResponse too.
+        if (aiRes.action && aiRes.action.type !== 'none') {
+          window.dispatchEvent(new CustomEvent('revonn-data-update'));
+        }
       }
-
-      const responseText = response.text();
 
       const assistantMessage: AIMessage = {
         id: (Date.now() + 1).toString(),
@@ -276,8 +262,11 @@ export function AIAssistant() {
             <div key={message.id} className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}>
               <div className={cn(
                 message.role === 'user' ? 'user-bubble' : 'ai-bubble',
-                'animate-scale-in max-w-[85%] shadow-md'
+                'animate-scale-in max-w-[85%] shadow-md flex flex-col'
               )}>
+                {message.image && (
+                  <img src={message.image} alt="Uploaded" className="mb-2 rounded-lg max-h-60 object-cover border border-white/20" />
+                )}
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.content}</p>
               </div>
             </div>
@@ -312,6 +301,19 @@ export function AIAssistant() {
 
         {/* Input */}
         <div className="p-4 border-t border-border bg-card/50">
+          {/* Image Preview */}
+          {selectedImage && (
+            <div className="mx-4 mb-2 relative inline-block">
+              <img src={selectedImage} alt="Preview" className="h-20 w-20 object-cover rounded-lg border border-border" />
+              <button
+                onClick={clearImage}
+                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-0.5 shadow-sm"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
           {isListening && (
             <div className="mb-3 p-3 rounded-xl bg-primary/10 border border-primary/30 text-center animate-pulse">
               <p className="text-sm text-primary font-medium flex items-center justify-center gap-2">
@@ -321,7 +323,55 @@ export function AIAssistant() {
               {transcript && <p className="text-xs text-muted-foreground mt-1">{transcript}</p>}
             </div>
           )}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 relative">
+
+            {/* Plus / Attach Button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAttachOptions(!showAttachOptions)}
+                className="p-3.5 rounded-xl bg-secondary hover:bg-secondary/80 transition-all shadow-md"
+              >
+                <Plus className={cn("w-5 h-5 transition-transform", showAttachOptions ? "rotate-45" : "")} />
+              </button>
+
+              {/* Attach Options Popup */}
+              {showAttachOptions && (
+                <div className="absolute bottom-full left-0 mb-2 p-2 bg-popover border border-border rounded-xl shadow-xl flex flex-col gap-1 min-w-[150px] animate-in fade-in zoom-in-95 duration-200 z-50">
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent rounded-lg text-left"
+                  >
+                    <Camera className="w-4 h-4 text-blue-500" />
+                    <span>Camera</span>
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent rounded-lg text-left"
+                  >
+                    <ImageIcon className="w-4 h-4 text-green-500" />
+                    <span>Upload Image</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Hidden Inputs */}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              ref={cameraInputRef}
+              onChange={handleFileSelect}
+            />
+
             {isSupported && (
               <button
                 onClick={toggleListening}

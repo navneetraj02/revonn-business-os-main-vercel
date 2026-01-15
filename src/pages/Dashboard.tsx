@@ -98,8 +98,8 @@ export default function Dashboard() {
       const invoicesQ = query(
         invoicesRef,
         where('user_id', '==', userId),
-        where('created_at', '>=', today.toISOString()),
-        orderBy('created_at', 'desc')
+        where('created_at', '>=', today.toISOString())
+        // orderBy('created_at', 'desc') removed to prevent index error
       );
 
       unsubscribeInvoices = onSnapshot(invoicesQ, (snapshot) => {
@@ -107,6 +107,8 @@ export default function Dashboard() {
         snapshot.forEach((doc) => {
           invoicesData.push({ id: doc.id, ...doc.data() } as Invoice);
         });
+        // Client-side Sort
+        invoicesData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setInvoices(invoicesData);
         setIsLoading(false);
       }, (error) => {

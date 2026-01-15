@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from "sonner";
 import { useNavigate, useLocation } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, ArrowRight } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -93,7 +93,7 @@ export default function PaymentStatus() {
 
         // Poll for status update (Callback might take a few seconds)
         let attempts = 0;
-        const maxAttempts = 10;
+        const maxAttempts = 15; // Increased polling time for better reliability
 
         const poll = setInterval(async () => {
           attempts++;
@@ -112,8 +112,6 @@ export default function PaymentStatus() {
             console.error('Error checking payment status:', invokeError);
             // Continue polling, don't fail immediately
           }
-
-
 
           if (txnStatus === 'SUCCESS') {
             clearInterval(poll);
@@ -164,7 +162,7 @@ export default function PaymentStatus() {
             // If still pending after timeout, show generic message or keep waiting
             // For now, we'll suggest checking back later or contact support if money deducted
             setStatus('failed');
-            setMessage(isHindi ? 'भुगतान स्थिति अभी तक अपडेट नहीं हुई है.' : 'Payment status pending. Please check dashboard.');
+            setMessage(isHindi ? 'भुगतान स्थिति अभी तक अपडेट नहीं हुई है.' : 'Payment status pending. Please check dashboard later.');
           }
         }, 2000); // Check every 2 seconds
 
@@ -180,66 +178,77 @@ export default function PaymentStatus() {
     checkStatus();
   }, [location.state]);
 
-  return (
-    <AppLayout title={isHindi ? 'पेमेंट स्टेटस' : 'Payment Status'} hideNav>
-      <div className="flex items-center justify-center min-h-[80vh] px-4">
-        <Card className="p-8 text-center max-w-sm w-full">
-          {status === 'loading' && (
-            <>
-              <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin mb-4" />
-              <h2 className="text-xl font-bold mb-2">
-                {isHindi ? 'भुगतान सत्यापित हो रहा है...' : 'Verifying payment...'}
-              </h2>
-              <p className="text-muted-foreground">
-                {isHindi ? 'कृपया प्रतीक्षा करें' : 'Please wait'}
-              </p>
-            </>
-          )}
-
-          {status === 'success' && (
-            <>
-              <div className="w-20 h-20 mx-auto bg-success/20 rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="w-12 h-12 text-success" />
-              </div>
-              <h2 className="text-xl font-bold text-success mb-2">
-                {isHindi ? 'भुगतान सफल!' : 'Payment Successful!'}
-              </h2>
-              <p className="text-muted-foreground mb-6">{message}</p>
+  const getStatusContent = () => {
+    switch (status) {
+      case 'loading':
+        return (
+          <div className="animate-in fade-in duration-500">
+            <Loader2 className="w-16 h-16 mx-auto text-primary animate-spin mb-6" />
+            <h2 className="text-2xl font-bold mb-3 bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
+              {isHindi ? 'भुगतान सत्यापित हो रहा है...' : 'Verifying Payment...'}
+            </h2>
+            <p className="text-muted-foreground mb-4">
+              {isHindi ? 'कृपया प्रतीक्षा करें, हम PhonePe से पुष्टि कर रहे हैं' : 'Please wait, checking with PhonePe...'}
+            </p>
+            <div className="w-full bg-secondary/50 h-2 rounded-full overflow-hidden max-w-[200px] mx-auto">
+              <div className="h-full bg-primary animate-progress-indeterminate"></div>
+            </div>
+          </div>
+        );
+      case 'success':
+        return (
+          <div className="animate-in zoom-in duration-500">
+            <div className="w-24 h-24 mx-auto bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-500/20">
+              <CheckCircle className="w-14 h-14 text-green-600 dark:text-green-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-green-600 dark:text-green-400 mb-3">
+              {isHindi ? 'भुगतान सफल!' : 'Payment Successful!'}
+            </h2>
+            <p className="text-muted-foreground mb-8 text-lg">{message}</p>
+            <Button
+              onClick={() => navigate('/dashboard')}
+              className="w-full h-12 text-lg font-medium btn-gold shadow-md hover:shadow-lg transition-all"
+            >
+              {isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard'}
+              <ArrowRight className="w-5 h-5 ml-2" />
+            </Button>
+          </div>
+        );
+      case 'failed':
+        return (
+          <div className="animate-in zoom-in duration-500">
+            <div className="w-24 h-24 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-red-500/20">
+              <XCircle className="w-14 h-14 text-red-600 dark:text-red-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-3">
+              {isHindi ? 'भुगतान विफल' : 'Payment Failed'}
+            </h2>
+            <p className="text-muted-foreground mb-8 text-lg">{message}</p>
+            <div className="space-y-4">
               <Button
+                onClick={() => navigate('/subscription')}
+                className="w-full h-12 text-lg font-medium shadow-sm"
+              >
+                {isHindi ? 'पुनः प्रयास करें' : 'Try Again'}
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => navigate('/dashboard')}
-                className="w-full btn-gold"
+                className="w-full h-12 text-lg font-medium"
               >
                 {isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard'}
               </Button>
-            </>
-          )}
+            </div>
+          </div>
+        );
+    }
+  };
 
-          {status === 'failed' && (
-            <>
-              <div className="w-20 h-20 mx-auto bg-destructive/20 rounded-full flex items-center justify-center mb-4">
-                <XCircle className="w-12 h-12 text-destructive" />
-              </div>
-              <h2 className="text-xl font-bold text-destructive mb-2">
-                {isHindi ? 'भुगतान विफल' : 'Payment Failed'}
-              </h2>
-              <p className="text-muted-foreground mb-6">{message}</p>
-              <div className="space-y-3">
-                <Button
-                  onClick={() => navigate('/subscription')}
-                  className="w-full"
-                >
-                  {isHindi ? 'पुनः प्रयास करें' : 'Try Again'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/dashboard')}
-                  className="w-full"
-                >
-                  {isHindi ? 'डैशबोर्ड पर जाएं' : 'Go to Dashboard'}
-                </Button>
-              </div>
-            </>
-          )}
+  return (
+    <AppLayout title={isHindi ? 'पेमेंट स्टेटस' : 'Payment Status'} hideNav>
+      <div className="flex items-center justify-center min-h-[85vh] px-4 bg-muted/30">
+        <Card className="p-8 text-center max-w-md w-full shadow-xl border-t-4 border-t-primary">
+          {getStatusContent()}
         </Card>
       </div>
     </AppLayout>

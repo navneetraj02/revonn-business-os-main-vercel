@@ -1,5 +1,40 @@
 const crypto = require('crypto');
 
+/**
+ * Fetches the OAuth Access Token from PhonePe
+ */
+async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
+    const tokenUrl = isProd
+        ? 'https://api.phonepe.com/apis/identity-manager/v1/oauth/token'
+        : 'https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token';
+
+    console.log(`Fetching Access Token from: ${tokenUrl}`);
+
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    try {
+        const response = await fetch(tokenUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Basic ${auth}`
+            },
+            body: new URLSearchParams({ grant_type: 'client_credentials' })
+        });
+
+        const data = await response.json();
+
+        if (data.access_token) {
+            return data.access_token;
+        } else {
+            throw new Error(`Failed to get access token: ${JSON.stringify(data)}`);
+        }
+    } catch (error) {
+        console.error("Token Fetch Error:", error);
+        throw error;
+    }
+}
+
 exports.handler = async function (event, context) {
     // Handling CORS
     const headers = {
@@ -27,27 +62,30 @@ exports.handler = async function (event, context) {
             };
         }
 
+        // Credentials
         const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID;
+
+        // V2 Credentials
+        const CLIENT_ID = process.env.PHONEPE_CLIENT_ID;
+        const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET;
+        const CLIENT_VERSION = process.env.PHONEPE_CLIENT_VERSION || 1;
+
+        // V1 Credentials (Fallback)
         const SALT_KEY = process.env.PHONEPE_SALT_KEY;
         const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || 1;
+
         const IS_PROD = process.env.PHONEPE_ENV === 'production';
 
-        if (!MERCHANT_ID || !SALT_KEY) {
+        if (!MERCHANT_ID || (!SALT_KEY && !CLIENT_ID)) {
             console.error("Missing PhonePe Credentials");
             return {
                 statusCode: 500,
                 headers,
-                body: JSON.stringify({ error: "Server misconfiguration: Missing PhonePe Credentials" })
+                body: JSON.stringify({ error: "Server misconfiguration: Missing PhonePe Credentials. Ensure either SaltKey or ClientID is set." })
             };
         }
 
-        // Determine URL (Sandbox for simulator fallback or real)
-        const PHONEPE_API_URL = IS_PROD
-            ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
-            : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
-
-        // Base URL for callbacks (Netlify URL)
-        // process.env.URL is provided by Netlify
+        // Base URL for callbacks
         const HOST_URL = process.env.URL || 'http://localhost:8888';
 
         const transactionId = `TXN_${userId.substring(0, 6)}_${Date.now()}`;
@@ -67,22 +105,48 @@ exports.handler = async function (event, context) {
         };
 
         const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-        const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
-        const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
+
+        let apiUrl;
+        let apiHeaders = {
+            'Content-Type': 'application/json',
+        };
+
+        // --- AUTHENTICATION FLOW SELECTION ---
+        if (CLIENT_ID && CLIENT_SECRET) {
+            // === V2 FLOW (No Salt, uses OAuth) ===
+            console.log("Using PhonePe V2 (Client Credentials) Flow [Netlify]");
+
+            const accessToken = await getAccessToken(CLIENT_ID, CLIENT_SECRET, CLIENT_VERSION, IS_PROD);
+
+            apiUrl = IS_PROD
+                ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
+                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
+
+            apiHeaders['Authorization'] = `Bearer ${accessToken}`;
+
+        } else {
+            // === V1 FLOW (Standard Salt Checksum) ===
+            console.log("Using PhonePe V1 (Salt Key) Flow [Netlify]");
+
+            apiUrl = IS_PROD
+                ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
+                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
+
+            const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
+            const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
+
+            apiHeaders['X-VERIFY'] = checksum;
+        }
 
         const options = {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-VERIFY': checksum,
-            },
+            headers: apiHeaders,
             body: JSON.stringify({ request: base64Payload })
         };
 
-        console.log(`Initiating Payment to: ${PHONEPE_API_URL}`);
+        console.log(`Initiating Payment to: ${apiUrl}`);
 
-        // Note: Using built-in fetch (Node 18+)
-        const response = await fetch(PHONEPE_API_URL, options);
+        const response = await fetch(apiUrl, options);
         const data = await response.json();
 
         if (data.success) {
