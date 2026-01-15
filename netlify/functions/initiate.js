@@ -27,6 +27,7 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
         if (data.access_token) {
             return data.access_token;
         } else {
+            console.error("Token Fetch Failed:", JSON.stringify(data));
             throw new Error(`Failed to get access token: ${JSON.stringify(data)}`);
         }
     } catch (error) {
@@ -36,58 +37,68 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
 }
 
 exports.handler = async function (event, context) {
-    // Handling CORS
+    // Basic CORS headers
     const headers = {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type, X-Verify, X-Merchant-Id',
+        'Access-Control-Allow-Headers': 'Content-Type, X-Verify, X-Merchant-Id, Authorization',
         'Access-Control-Allow-Methods': 'POST, OPTIONS'
     };
 
-    if (event.httpMethod === 'OPTIONS') {
-        return { statusCode: 200, headers, body: '' };
-    }
-
-    if (event.httpMethod !== 'POST') {
-        return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
-    }
-
     try {
-        const { amount, mobileNumber, userId } = JSON.parse(event.body);
+        if (event.httpMethod === 'OPTIONS') {
+            return { statusCode: 200, headers, body: '' };
+        }
 
-        if (!amount || !userId || !mobileNumber) {
+        if (event.httpMethod !== 'POST') {
+            return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
+        }
+
+        let body = {};
+        try {
+            body = JSON.parse(event.body);
+        } catch (e) {
+            return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
+        }
+
+        const { amount, mobileNumber, userId } = body;
+
+        if (!amount || !userId) {
             return {
                 statusCode: 400,
                 headers,
-                body: JSON.stringify({ error: 'Missing required fields: amount, userId, or mobileNumber' })
+                body: JSON.stringify({ error: 'Missing required fields: amount or userId' })
             };
         }
+
+        // --- DEBUG: LOG ENV VAR PRESENCE (Safety First) ---
+        console.log("Checking Environment Variables...");
+        const envCheck = {
+            MERCHANT_ID: !!process.env.PHONEPE_MERCHANT_ID,
+            CLIENT_ID: !!process.env.PHONEPE_CLIENT_ID,
+            CLIENT_SECRET: !!process.env.PHONEPE_CLIENT_SECRET,
+            SALT_KEY: !!process.env.PHONEPE_SALT_KEY,
+            ENV: process.env.PHONEPE_ENV
+        };
+        console.log("Env Vars Present:", JSON.stringify(envCheck));
 
         // Credentials
         const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID;
-
-        // V2 Credentials
         const CLIENT_ID = process.env.PHONEPE_CLIENT_ID;
         const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET;
         const CLIENT_VERSION = process.env.PHONEPE_CLIENT_VERSION || 1;
-
-        // V1 Credentials (Fallback)
         const SALT_KEY = process.env.PHONEPE_SALT_KEY;
         const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || 1;
-
         const IS_PROD = process.env.PHONEPE_ENV === 'production';
 
-        if (!MERCHANT_ID || (!SALT_KEY && !CLIENT_ID)) {
-            console.error("Missing PhonePe Credentials");
-            return {
-                statusCode: 500,
-                headers,
-                body: JSON.stringify({ error: "Server misconfiguration: Missing PhonePe Credentials. Ensure either SaltKey or ClientID is set." })
-            };
+        if (!MERCHANT_ID) {
+            throw new Error("Missing PHONEPE_MERCHANT_ID in Server Environment");
+        }
+        if (!CLIENT_ID && !SALT_KEY) {
+            throw new Error("Missing Auth Credentials (CLIENT_ID or SALT_KEY) in Server Environment");
         }
 
-        // Base URL for callbacks
-        const HOST_URL = process.env.URL || 'http://localhost:8888';
-
+        // Base URL
+        const HOST_URL = process.env.URL || 'https://revonn.netlify.app';
         const transactionId = `TXN_${userId.substring(0, 6)}_${Date.now()}`;
 
         const payload = {
@@ -98,24 +109,19 @@ exports.handler = async function (event, context) {
             redirectUrl: `${HOST_URL}/payment-status`,
             redirectMode: "POST",
             callbackUrl: `${HOST_URL}/.netlify/functions/webhook`,
-            mobileNumber: mobileNumber,
+            mobileNumber: mobileNumber || "9999999999",
             paymentInstrument: {
                 type: "PAY_PAGE"
             }
         };
 
         const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-
         let apiUrl;
-        let apiHeaders = {
-            'Content-Type': 'application/json',
-        };
+        let apiHeaders = { 'Content-Type': 'application/json' };
 
-        // --- AUTHENTICATION FLOW SELECTION ---
+        // --- AUTH FLOW ---
         if (CLIENT_ID && CLIENT_SECRET) {
-            // === V2 FLOW (No Salt, uses OAuth) ===
-            console.log("Using PhonePe V2 (Client Credentials) Flow [Netlify]");
-
+            console.log("Using V2 Client Flow");
             const accessToken = await getAccessToken(CLIENT_ID, CLIENT_SECRET, CLIENT_VERSION, IS_PROD);
 
             apiUrl = IS_PROD
@@ -123,18 +129,14 @@ exports.handler = async function (event, context) {
                 : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
 
             apiHeaders['Authorization'] = `Bearer ${accessToken}`;
-
         } else {
-            // === V1 FLOW (Standard Salt Checksum) ===
-            console.log("Using PhonePe V1 (Salt Key) Flow [Netlify]");
-
+            console.log("Using V1 Salt Flow");
             apiUrl = IS_PROD
                 ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
                 : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
 
             const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
             const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
-
             apiHeaders['X-VERIFY'] = checksum;
         }
 
@@ -144,10 +146,18 @@ exports.handler = async function (event, context) {
             body: JSON.stringify({ request: base64Payload })
         };
 
-        console.log(`Initiating Payment to: ${apiUrl}`);
-
+        console.log(`Sending Payment Request to: ${apiUrl}`);
         const response = await fetch(apiUrl, options);
-        const data = await response.json();
+
+        // Handle non-JSON responses from PhonePe (rare but possible)
+        const textResponse = await response.text();
+        let data;
+        try {
+            data = JSON.parse(textResponse);
+        } catch (e) {
+            console.error("PhonePe returned non-JSON:", textResponse);
+            throw new Error(`PhonePe Gateway returned invalid response: ${textResponse.substring(0, 100)}...`);
+        }
 
         if (data.success) {
             return {
@@ -160,24 +170,29 @@ exports.handler = async function (event, context) {
                 })
             };
         } else {
-            console.error("PhonePe Gateway Error:", JSON.stringify(data, null, 2));
+            console.error("Gateway Error:", data);
             return {
-                statusCode: 400,
+                statusCode: 400, // Bad Request from Gateway
                 headers,
                 body: JSON.stringify({
                     success: false,
-                    error: data.message || "Payment initiation failed at gateway",
+                    error: data.message || "Payment Failed",
                     details: data
                 })
             };
         }
 
-    } catch (error) {
-        console.error("Internal Error:", error);
+    } catch (fatalError) {
+        console.error("FATAL FUNCTION ERROR:", fatalError);
+        // RETURN 500 BUT WITH JSON BODY so the frontend doesn't just say "Unreachable"
         return {
             statusCode: 500,
             headers,
-            body: JSON.stringify({ error: "Internal Server Error", details: error.message })
+            body: JSON.stringify({
+                error: "Internal Server Error",
+                message: fatalError.message,
+                stack: fatalError.stack?.split('\n')[0] // First line of stack for safety
+            })
         };
     }
 };
