@@ -42,7 +42,9 @@ export const initiatePhonePePayment = async (
             };
         } else {
             console.error("Backend Init Failed", data);
-            throw new Error(data.error || "Payment initiation failed");
+            // Prioritize 'message' which has the detailed info (e.g. "Failed to get access token...")
+            // Fallback to 'error' (e.g. "Internal Server Error")
+            throw new Error(data.message || data.error || "Payment initiation failed");
         }
     } catch (error) {
         console.error("Payment Initiation Error:", error);
