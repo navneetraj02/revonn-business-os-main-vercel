@@ -100,15 +100,18 @@ export default async function handler(req, res) {
 
         const transactionId = `TXN_${userId.substring(0, 6)}_${Date.now()}`;
 
+        const safeAmount = Math.round(Number(amount) * 100); // Ensure Integer (Paise)
+        const safeMobile = (mobileNumber || "9999999999").replace(/\D/g, '').slice(-10);
+
         const payload = {
             merchantId: MERCHANT_ID,
             merchantTransactionId: transactionId,
             merchantUserId: userId,
-            amount: amount * 100,
+            amount: safeAmount,
             redirectUrl: `${HOST_URL}/payment-status`,
             redirectMode: "POST",
             callbackUrl: `${HOST_URL}/api/webhook`,
-            mobileNumber: mobileNumber || "9999999999",
+            mobileNumber: safeMobile,
             paymentInstrument: {
                 type: "PAY_PAGE"
             },
