@@ -167,13 +167,14 @@ export const handler = async function (event, context) {
         console.log(`Sending Payment Request to: ${apiUrl}`);
         const response = await fetch(apiUrl, options);
 
+        // Handle non-JSON responses from PhonePe (rare but possible)
         const textResponse = await response.text();
         let data;
         try {
             data = JSON.parse(textResponse);
         } catch (e) {
             console.error("PhonePe returned non-JSON:", textResponse);
-            throw new Error(`PhonePe Gateway returned invalid response: ${textResponse.substring(0, 100)}...`);
+            throw new Error(`PhonePe Gateway Error (${response.status} ${response.statusText}) from ${apiUrl}: ${textResponse.substring(0, 300)}...`);
         }
 
         if (data.success) {
