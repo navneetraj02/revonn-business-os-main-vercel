@@ -8,7 +8,15 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
         ? 'https://api.phonepe.com/apis/identity-manager/v1/oauth/token'
         : 'https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token';
 
-    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    // Robust trimming
+    const cid = clientId ? clientId.trim() : '';
+    const csec = clientSecret ? clientSecret.trim() : '';
+
+    const auth = Buffer.from(`${cid}:${csec}`).toString('base64');
+
+    // Timeout helper
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
         const response = await fetch(tokenUrl, {
@@ -17,14 +25,20 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Authorization': `Basic ${auth}`
             },
-            body: new URLSearchParams({ grant_type: 'client_credentials' })
-        });
+            body: new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: cid,
+                client_secret: csec
+            }),
+            signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
 
         const data = await response.json();
 
         if (data.access_token) {
             return data.access_token;
         } else {
+            console.error("Token Fetch Failed:", JSON.stringify(data));
             throw new Error(`Failed to get access token: ${JSON.stringify(data)}`);
         }
     } catch (error) {
@@ -51,18 +65,21 @@ export default async function handler(req, res) {
     }
 
     try {
-        const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID;
+        // Credentials
+        const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID ? process.env.PHONEPE_MERCHANT_ID.trim() : '';
 
         // V2 Credentials
-        const CLIENT_ID = process.env.PHONEPE_CLIENT_ID;
-        const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET;
+        const CLIENT_ID = process.env.PHONEPE_CLIENT_ID ? process.env.PHONEPE_CLIENT_ID.trim() : '';
+        const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET ? process.env.PHONEPE_CLIENT_SECRET.trim() : '';
         const CLIENT_VERSION = process.env.PHONEPE_CLIENT_VERSION || 1;
 
         // V1 Credentials
-        const SALT_KEY = process.env.PHONEPE_SALT_KEY;
+        const SALT_KEY = process.env.PHONEPE_SALT_KEY ? process.env.PHONEPE_SALT_KEY.trim() : '';
         const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || 1;
 
-        const IS_PROD = process.env.PHONEPE_ENV === 'production';
+        // Robust Environment Check
+        const envRaw = process.env.PHONEPE_ENV || '';
+        const IS_PROD = envRaw.trim().toLowerCase() === 'production';
 
         if (!MERCHANT_ID || (!SALT_KEY && !CLIENT_ID)) {
             return res.status(500).json({ error: "Missing PhonePe Credentials" });
@@ -88,10 +105,14 @@ export default async function handler(req, res) {
             headers['X-VERIFY'] = checksum;
         }
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
         const response = await fetch(PHONEPE_STATUS_URL, {
             method: 'GET',
-            headers: headers
-        });
+            headers: headers,
+            signal: controller.signal
+        }).finally(() => clearTimeout(timeoutId));
 
         const data = await response.json();
 
@@ -114,6 +135,6 @@ export default async function handler(req, res) {
 
     } catch (error) {
         console.error("Status Check Error:", error);
-        return res.status(500).json({ error: "Internal Server Error" });
+        return res.status(500).json({ error: "Internal Server Error", message: error.message });
     }
 }
