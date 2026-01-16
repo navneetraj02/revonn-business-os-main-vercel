@@ -165,7 +165,12 @@ export const handler = async function (event, context) {
         };
 
         console.log(`Sending Payment Request to: ${apiUrl}`);
-        const response = await fetch(apiUrl, options);
+        // Use timeout wrapper defined above (or inline it if scope is issue, but function scope is fine)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const response = await fetch(apiUrl, { ...options, signal: controller.signal })
+            .finally(() => clearTimeout(timeoutId));
 
         // Handle non-JSON responses from PhonePe (rare but possible)
         const textResponse = await response.text();
