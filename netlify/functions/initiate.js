@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+import crypto from 'crypto';
 
 /**
  * Fetches the OAuth Access Token from PhonePe
@@ -10,7 +10,11 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
 
     console.log(`Fetching Access Token from: ${tokenUrl}`);
 
-    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    // Robust trimming to prevent "Invalid Client" due to whitespace
+    const cid = clientId ? clientId.trim() : '';
+    const csec = clientSecret ? clientSecret.trim() : '';
+
+    const auth = Buffer.from(`${cid}:${csec}`).toString('base64');
 
     try {
         const response = await fetch(tokenUrl, {
@@ -19,7 +23,12 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
                 'Content-Type': 'application/x-www-form-urlencoded',
                 'Authorization': `Basic ${auth}`
             },
-            body: new URLSearchParams({ grant_type: 'client_credentials' })
+            // PhonePe V2 sometimes benefits from having params in body as fallback
+            body: new URLSearchParams({
+                grant_type: 'client_credentials',
+                client_id: cid,
+                client_secret: csec
+            })
         });
 
         const data = await response.json();
@@ -28,6 +37,7 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
             return data.access_token;
         } else {
             console.error("Token Fetch Failed:", JSON.stringify(data));
+            // Throw detailed error including the specific PhonePe error code
             throw new Error(`Failed to get access token: ${JSON.stringify(data)}`);
         }
     } catch (error) {
@@ -36,7 +46,7 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
     }
 }
 
-exports.handler = async function (event, context) {
+export const handler = async function (event, context) {
     // Basic CORS headers
     const headers = {
         'Access-Control-Allow-Origin': '*',
@@ -83,13 +93,20 @@ exports.handler = async function (event, context) {
         console.log("Env Vars Present:", JSON.stringify(envCheck));
 
         // Credentials
-        const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID;
-        const CLIENT_ID = process.env.PHONEPE_CLIENT_ID;
-        const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET;
+        const MERCHANT_ID = process.env.PHONEPE_MERCHANT_ID ? process.env.PHONEPE_MERCHANT_ID.trim() : '';
+
+        // V2 Credentials
+        const CLIENT_ID = process.env.PHONEPE_CLIENT_ID ? process.env.PHONEPE_CLIENT_ID.trim() : '';
+        const CLIENT_SECRET = process.env.PHONEPE_CLIENT_SECRET ? process.env.PHONEPE_CLIENT_SECRET.trim() : '';
         const CLIENT_VERSION = process.env.PHONEPE_CLIENT_VERSION || 1;
-        const SALT_KEY = process.env.PHONEPE_SALT_KEY;
+
+        // V1 Credentials (Fallback)
+        const SALT_KEY = process.env.PHONEPE_SALT_KEY ? process.env.PHONEPE_SALT_KEY.trim() : '';
         const SALT_INDEX = process.env.PHONEPE_SALT_INDEX || 1;
-        const IS_PROD = process.env.PHONEPE_ENV === 'production';
+
+        // Robust Environment Check: "Production", "production ", "PRODUCTION" -> true
+        const envRaw = process.env.PHONEPE_ENV || '';
+        const IS_PROD = envRaw.trim().toLowerCase() === 'production';
 
         if (!MERCHANT_ID) {
             throw new Error("Missing PHONEPE_MERCHANT_ID in Server Environment");
@@ -150,7 +167,6 @@ exports.handler = async function (event, context) {
         console.log(`Sending Payment Request to: ${apiUrl}`);
         const response = await fetch(apiUrl, options);
 
-        // Handle non-JSON responses from PhonePe (rare but possible)
         const textResponse = await response.text();
         let data;
         try {
@@ -173,7 +189,7 @@ exports.handler = async function (event, context) {
         } else {
             console.error("Gateway Error:", data);
             return {
-                statusCode: 400, // Bad Request from Gateway
+                statusCode: 400,
                 headers,
                 body: JSON.stringify({
                     success: false,
@@ -185,14 +201,13 @@ exports.handler = async function (event, context) {
 
     } catch (fatalError) {
         console.error("FATAL FUNCTION ERROR:", fatalError);
-        // RETURN 500 BUT WITH JSON BODY so the frontend doesn't just say "Unreachable"
         return {
             statusCode: 500,
             headers,
             body: JSON.stringify({
                 error: "Internal Server Error",
                 message: fatalError.message,
-                stack: fatalError.stack?.split('\n')[0] // First line of stack for safety
+                stack: fatalError.stack?.split('\n')[0]
             })
         };
     }
