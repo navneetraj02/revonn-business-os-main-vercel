@@ -26,7 +26,10 @@ export const initiatePhonePePayment = async (
         // Handle cases where response is not JSON (e.g. 404 HTML page or network error)
         const contentType = response.headers.get("content-type");
         if (!contentType || !contentType.includes("application/json")) {
-            throw new Error("Backend API unreachable or returned non-JSON response.");
+            const rawText = await response.text();
+            console.error("Backend returned non-JSON:", rawText);
+            // Throw the actual HTML/Text content (truncated) so user can see it in Toast
+            throw new Error(`Server Error (${response.status}): ${rawText.substring(0, 60)}...`);
         }
 
         const data = await response.json();
