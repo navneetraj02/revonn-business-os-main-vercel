@@ -111,6 +111,9 @@ export default async function handler(req, res) {
             mobileNumber: mobileNumber || "9999999999",
             paymentInstrument: {
                 type: "PAY_PAGE"
+            },
+            deviceContext: {
+                deviceOS: "WEB"
             }
         };
 
