@@ -4,7 +4,7 @@
  */
 
 import { auth, db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, updateDoc, doc, query, where, getDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, doc, query, where, getDoc, increment } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 // --- CONTEXT GATHERING (FIREBASE) ---
@@ -281,6 +281,24 @@ export async function generateAIResponse(message: string, previousMessages: Simp
         console.error("Action Failed", err);
         parsed.response += ` (Error: ${err.message || "Unknown error saving data"})`;
       }
+    }
+
+    // --- TRACK USAGE ---
+    try {
+      if (auth.currentUser) {
+        // Increment usage count for the user
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        await updateDoc(userRef, {
+          ai_usage_count: increment(1),
+          last_ai_usage: new Date().toISOString()
+        });
+
+        // Also log to separate stats collection if needed options
+        // For now, user profile is enough for Admin Portal list
+      }
+    } catch (e) {
+      console.error("Failed to track AI usage", e);
+      // Don't fail the response if tracking fails
     }
 
     return {

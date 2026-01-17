@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 export type PlanType = 'demo' | 'basic' | 'pro';
 
@@ -49,88 +48,97 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [demoUsage, setDemoUsage] = useState<DemoUsage | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchSubscription = async () => {
-    try {
-      const user = auth.currentUser;
+  // Setup Real-time Listener
+  useEffect(() => {
+    let unsubscribeSubscription: () => void;
+    let unsubscribeUsage: () => void;
+
+    const setupListeners = async (user: any) => {
       if (!user) {
+        setSubscription(null);
+        setDemoUsage(null);
         setLoading(false);
         return;
       }
 
-      // Fetch subscription
+      // 1. Real-time Subscription Listener
       const subRef = doc(db, 'user_subscriptions', user.uid);
-      const subSnap = await getDoc(subRef);
+      unsubscribeSubscription = onSnapshot(subRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const subData = docSnap.data();
+          setSubscription({
+            plan_type: subData.plan_type as PlanType,
+            ai_addon: subData.ai_addon,
+            billing_cycle: subData.billing_cycle as 'monthly' | 'yearly' | null,
+            is_active: subData.is_active,
+            expires_at: subData.expires_at
+          });
+        } else {
+          // Initialize default if missing (and listen to it)
+          setDoc(subRef, {
+            user_id: user.uid,
+            plan_type: 'demo',
+            ai_addon: false,
+            billing_cycle: null,
+            is_active: true,
+            expires_at: null,
+            created_at: new Date().toISOString()
+          }, { merge: true }); // Merge to avoid overwriting if created concurrently
 
-      if (subSnap.exists()) {
-        const subData = subSnap.data();
-        setSubscription({
-          plan_type: subData.plan_type as PlanType,
-          ai_addon: subData.ai_addon,
-          billing_cycle: subData.billing_cycle as 'monthly' | 'yearly' | null,
-          is_active: subData.is_active,
-          expires_at: subData.expires_at
-        });
-      } else {
-        // Create default demo subscription
-        await setDoc(subRef, {
-          user_id: user.uid,
-          plan_type: 'demo',
-          ai_addon: false,
-          billing_cycle: null,
-          is_active: true,
-          expires_at: null,
-          created_at: new Date().toISOString()
-        });
+          // Set default local state
+          setSubscription({
+            plan_type: 'demo',
+            ai_addon: false,
+            billing_cycle: null,
+            is_active: true,
+            expires_at: null
+          });
+        }
+        setLoading(false); // Valid data received
+      });
 
-        setSubscription({
-          plan_type: 'demo',
-          ai_addon: false,
-          billing_cycle: null,
-          is_active: true,
-          expires_at: null
-        });
-      }
-
-      // Fetch demo usage
+      // 2. Real-time Usage Listener (Optional but good for sync)
       const usageRef = doc(db, 'demo_usage', user.uid);
-      const usageSnap = await getDoc(usageRef);
+      unsubscribeUsage = onSnapshot(usageRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const usageData = docSnap.data();
+          setDemoUsage({
+            bills_created: usageData.bills_created || 0,
+            inventory_items: usageData.inventory_items || 0,
+            customers_added: usageData.customers_added || 0
+          });
+        } else {
+          // Initialize default
+          setDoc(usageRef, {
+            user_id: user.uid,
+            bills_created: 0,
+            inventory_items: 0,
+            customers_added: 0,
+            created_at: new Date().toISOString()
+          }, { merge: true });
 
-      if (usageSnap.exists()) {
-        const usageData = usageSnap.data();
-        setDemoUsage({
-          bills_created: usageData.bills_created,
-          inventory_items: usageData.inventory_items,
-          customers_added: usageData.customers_added
-        });
-      } else {
-        // Create default demo usage
-        await setDoc(usageRef, {
-          user_id: user.uid,
-          bills_created: 0,
-          inventory_items: 0,
-          customers_added: 0,
-          created_at: new Date().toISOString()
-        });
+          setDemoUsage({
+            bills_created: 0,
+            inventory_items: 0,
+            customers_added: 0
+          });
+        }
+      });
+    };
 
-        setDemoUsage({
-          bills_created: 0,
-          inventory_items: 0,
-          customers_added: 0
-        });
-      }
-    } catch (error) {
-      console.error('Error in fetchSubscription:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      // Cleanup previous listeners when auth changes
+      if (unsubscribeSubscription) unsubscribeSubscription();
+      if (unsubscribeUsage) unsubscribeUsage();
 
-  useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(() => {
-      fetchSubscription();
+      setupListeners(user);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeSubscription) unsubscribeSubscription();
+      if (unsubscribeUsage) unsubscribeUsage();
+    };
   }, []);
 
   const isDemo = subscription?.plan_type === 'demo' || !subscription;
@@ -202,7 +210,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       loading,
       checkLimit,
       incrementUsage,
-      refreshSubscription: fetchSubscription
+      refreshSubscription: async () => { } // No-op: handled by real-time listener
     }}>
       {children}
     </SubscriptionContext.Provider>
