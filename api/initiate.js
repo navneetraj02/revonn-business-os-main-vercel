@@ -140,14 +140,17 @@ export default async function handler(req, res) {
             apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
 
             // Re-enabling X-VERIFY for V2.
-            // Research confirms strict V2 still needs Checksum for payload integrity.
-            // Support likely meant "Don't use V1 *Auth*", not "Don't use Salt for Signing".
-            if (SALT_KEY) {
-                const stringToSign = base64Payload + "/pg/checkout/v2/pay" + SALT_KEY;
-                const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
+            // fallback: Use CLIENT_SECRET if SALT_KEY is missing (common interpretation for "Client Keys Only")
+            const effectiveSaltKey = SALT_KEY || CLIENT_SECRET;
+            const effectiveSaltIndex = SALT_KEY ? SALT_INDEX : 1;
+
+            if (effectiveSaltKey) {
+                const stringToSign = base64Payload + "/pg/checkout/v2/pay" + effectiveSaltKey;
+                const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + effectiveSaltIndex;
                 apiHeaders['X-VERIFY'] = checksum;
+                console.log("Generated X-VERIFY using", SALT_KEY ? "Salt Key" : "Client Secret");
             } else {
-                console.warn("Warning: V2 Flow missing SALT_KEY for X-VERIFY.");
+                console.warn("Warning: V2 Flow missing Key for X-VERIFY.");
             }
 
         } else if (SALT_KEY) {
