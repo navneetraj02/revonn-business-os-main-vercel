@@ -133,6 +133,17 @@ export default async function handler(req, res) {
                 : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
 
             apiHeaders['Authorization'] = `Bearer ${accessToken}`;
+            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
+
+            // V2 Standard Checkout often STILL requires X-VERIFY for payload integrity
+            // using the Salt Key.
+            if (SALT_KEY) {
+                const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
+                const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
+                apiHeaders['X-VERIFY'] = checksum;
+            } else {
+                console.warn("Warning: V2 Flow used without SALT_KEY. Payment might fail if X-VERIFY is mandatory.");
+            }
         } else {
             console.log("Using V1 Salt Flow");
             apiUrl = IS_PROD
@@ -142,6 +153,7 @@ export default async function handler(req, res) {
             const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
             const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
             apiHeaders['X-VERIFY'] = checksum;
+            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID; // Ensure this is present for V1 too
         }
 
         console.log(`Sending Payment Request to: ${apiUrl}`);
