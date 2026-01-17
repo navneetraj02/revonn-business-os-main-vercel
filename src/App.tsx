@@ -40,6 +40,7 @@ import Marketing from "./pages/Marketing";
 import SubscriptionPlans from "./pages/SubscriptionPlans";
 import PaymentStatus from "./pages/PaymentStatus";
 import NotFound from "./pages/NotFound";
+import Admin from "./pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -130,6 +131,7 @@ function AppContent() {
         <Route path="/payment-status" element={<PaymentStatus />} />
         <Route path="/help" element={<Help />} />
         <Route path="/checkout" element={<Checkout />} />
+        <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="/auth" element={isAuthenticated ? <Navigate to="/home" replace /> : <Auth />} />
       <Route path="/policy/terms" element={<PolicyTerms />} />
