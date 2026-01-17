@@ -13,7 +13,22 @@ export const initiatePhonePePayment = async (
     try {
         console.log("Initiating Payment via Backend...");
 
-        // Call Vercel Backend Function
+        // TEMPORARY WORKAROUND: Use Static Payment Link provided by User
+        // The backend API integration is blocked due to missing Salt Key (X-VERIFY requirement).
+        // This link allows users to pay via UPI apps directly.
+        // Link likely expires in 1 day (needs manual update or ENV var).
+
+        const STATIC_LINK = "https://phon.pe/jp4rcj7x";
+        console.log("Using Static Payment Link:", STATIC_LINK);
+
+        return {
+            success: true,
+            url: STATIC_LINK,
+            transactionId: `STATIC_${Date.now()}` // Dummy ID since we don't have a real one from API
+        };
+
+        /* 
+        // --- ORIGINAL API CALL LOGIC (Commented Out) ---
         const apiUrl = '/api/initiate';
         console.log(`Sending request to: ${window.location.origin}${apiUrl}`);
 
@@ -22,30 +37,9 @@ export const initiatePhonePePayment = async (
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ amount, userId, mobileNumber })
         });
-
-        // Handle cases where response is not JSON (e.g. 404 HTML page or network error)
-        const contentType = response.headers.get("content-type");
-        if (!contentType || !contentType.includes("application/json")) {
-            const rawText = await response.text();
-            console.error("Backend returned non-JSON:", rawText);
-            // Throw the actual HTML/Text content (truncated) so user can see it in Toast
-            throw new Error(`Server Error (${response.status}): ${rawText.substring(0, 60)}...`);
-        }
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            return {
-                success: true,
-                url: data.url,
-                transactionId: data.transactionId
-            };
-        } else {
-            console.error("Backend Init Failed", data);
-            // Prioritize 'message' which has the detailed info (e.g. "Failed to get access token...")
-            // Fallback to 'error' (e.g. "Internal Server Error")
-            throw new Error(data.message || data.error || "Payment initiation failed");
-        }
+        
+        // ... (rest of original logic)
+        */
     } catch (error) {
         console.error("Payment Initiation Error:", error);
         // Friendly error messages based on common issues
