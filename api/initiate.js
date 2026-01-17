@@ -30,7 +30,8 @@ async function getAccessToken(clientId, clientSecret, clientVersion, isProd) {
             body: new URLSearchParams({
                 grant_type: 'client_credentials',
                 client_id: cid,
-                client_secret: csec
+                client_secret: csec,
+                client_version: clientVersion
             }),
             signal: controller.signal
         }).finally(() => clearTimeout(timeoutId));
