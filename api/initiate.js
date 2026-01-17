@@ -125,17 +125,18 @@ export default async function handler(req, res) {
         let apiHeaders = { 'Content-Type': 'application/json' };
 
         if (CLIENT_ID && CLIENT_SECRET) {
-            // === V2 FLOW (Client Credentials) - REQUIRED by Support ===
+            // === V2 FLOW (Client Credentials) ===
             console.log("Using PhonePe V2 (Client Credentials) Flow");
 
             const accessToken = await getAccessToken(CLIENT_ID, CLIENT_SECRET, CLIENT_VERSION, IS_PROD);
 
+            // V2 Endpoint is different: /checkout/v2/pay
             apiUrl = IS_PROD
-                ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
-                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
+                ? 'https://api.phonepe.com/apis/pg/checkout/v2/pay'
+                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/checkout/v2/pay';
 
             apiHeaders['Authorization'] = `Bearer ${accessToken}`;
-            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID; // CRITICAL: Missing in previous V2 attempts
+            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
 
             // Note: Support said "V1 credentials (salt) not applicable". 
             // So we strictly DO NOT send X-VERIFY here.
