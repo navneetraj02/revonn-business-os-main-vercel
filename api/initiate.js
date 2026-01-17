@@ -124,8 +124,24 @@ export default async function handler(req, res) {
         let apiUrl;
         let apiHeaders = { 'Content-Type': 'application/json' };
 
-        if (CLIENT_ID && CLIENT_SECRET) {
-            console.log("Using V2 Client Flow");
+        if (SALT_KEY) {
+            // === V1 FLOW (Standard Salt Checksum) - PREFERRED for pg/v1/pay ===
+            console.log("Using PhonePe V1 (Salt Key) Flow");
+
+            apiUrl = IS_PROD
+                ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
+                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
+
+            const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
+            const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
+
+            apiHeaders['X-VERIFY'] = checksum;
+            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
+
+        } else if (CLIENT_ID && CLIENT_SECRET) {
+            // === V2 FLOW (No Salt, uses OAuth) ===
+            console.log("Using PhonePe V2 (Client Credentials) Flow");
+            // ... (keep existing V2 logic as backup)
             const accessToken = await getAccessToken(CLIENT_ID, CLIENT_SECRET, CLIENT_VERSION, IS_PROD);
 
             apiUrl = IS_PROD
@@ -134,26 +150,8 @@ export default async function handler(req, res) {
 
             apiHeaders['Authorization'] = `Bearer ${accessToken}`;
             apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
-
-            // V2 Standard Checkout often STILL requires X-VERIFY for payload integrity
-            // using the Salt Key.
-            if (SALT_KEY) {
-                const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
-                const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
-                apiHeaders['X-VERIFY'] = checksum;
-            } else {
-                console.warn("Warning: V2 Flow used without SALT_KEY. Payment might fail if X-VERIFY is mandatory.");
-            }
         } else {
-            console.log("Using V1 Salt Flow");
-            apiUrl = IS_PROD
-                ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
-                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
-
-            const stringToSign = base64Payload + "/pg/v1/pay" + SALT_KEY;
-            const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
-            apiHeaders['X-VERIFY'] = checksum;
-            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID; // Ensure this is present for V1 too
+            throw new Error("No valid PhonePe authentication credentials (SALT_KEY or CLIENT_ID/CLIENT_SECRET) provided.");
         }
 
         console.log(`Sending Payment Request to: ${apiUrl}`);
