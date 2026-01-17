@@ -124,8 +124,26 @@ export default async function handler(req, res) {
         let apiUrl;
         let apiHeaders = { 'Content-Type': 'application/json' };
 
-        if (SALT_KEY) {
-            // === V1 FLOW (Standard Salt Checksum) - PREFERRED for pg/v1/pay ===
+        if (CLIENT_ID && CLIENT_SECRET) {
+            // === V2 FLOW (Client Credentials) - REQUIRED by Support ===
+            console.log("Using PhonePe V2 (Client Credentials) Flow");
+
+            const accessToken = await getAccessToken(CLIENT_ID, CLIENT_SECRET, CLIENT_VERSION, IS_PROD);
+
+            apiUrl = IS_PROD
+                ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
+                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
+
+            apiHeaders['Authorization'] = `Bearer ${accessToken}`;
+            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID; // CRITICAL: Missing in previous V2 attempts
+
+            // Note: Support said "V1 credentials (salt) not applicable". 
+            // So we strictly DO NOT send X-VERIFY here.
+            // If this fails, then V2 *does* require a checksum using a different mechanism,
+            // but standard 'Authorization' + 'X-MERCHANT-ID' is the correct V2 structure.
+
+        } else if (SALT_KEY) {
+            // === V1 FLOW (Fallback) ===
             console.log("Using PhonePe V1 (Salt Key) Flow");
 
             apiUrl = IS_PROD
@@ -137,21 +155,8 @@ export default async function handler(req, res) {
 
             apiHeaders['X-VERIFY'] = checksum;
             apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
-
-        } else if (CLIENT_ID && CLIENT_SECRET) {
-            // === V2 FLOW (No Salt, uses OAuth) ===
-            console.log("Using PhonePe V2 (Client Credentials) Flow");
-            // ... (keep existing V2 logic as backup)
-            const accessToken = await getAccessToken(CLIENT_ID, CLIENT_SECRET, CLIENT_VERSION, IS_PROD);
-
-            apiUrl = IS_PROD
-                ? 'https://api.phonepe.com/apis/hermes/pg/v1/pay'
-                : 'https://api-preprod.phonepe.com/apis/pg-sandbox/pg/v1/pay';
-
-            apiHeaders['Authorization'] = `Bearer ${accessToken}`;
-            apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
         } else {
-            throw new Error("No valid PhonePe authentication credentials (SALT_KEY or CLIENT_ID/CLIENT_SECRET) provided.");
+            throw new Error("No valid PhonePe authentication credentials provided.");
         }
 
         console.log(`Sending Payment Request to: ${apiUrl}`);
