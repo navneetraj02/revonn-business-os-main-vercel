@@ -139,10 +139,16 @@ export default async function handler(req, res) {
             apiHeaders['Authorization'] = `Bearer ${accessToken}`;
             apiHeaders['X-MERCHANT-ID'] = MERCHANT_ID;
 
-            // Note: Support said "V1 credentials (salt) not applicable". 
-            // So we strictly DO NOT send X-VERIFY here.
-            // If this fails, then V2 *does* require a checksum using a different mechanism,
-            // but standard 'Authorization' + 'X-MERCHANT-ID' is the correct V2 structure.
+            // Re-enabling X-VERIFY for V2.
+            // Research confirms strict V2 still needs Checksum for payload integrity.
+            // Support likely meant "Don't use V1 *Auth*", not "Don't use Salt for Signing".
+            if (SALT_KEY) {
+                const stringToSign = base64Payload + "/pg/checkout/v2/pay" + SALT_KEY;
+                const checksum = crypto.createHash('sha256').update(stringToSign).digest('hex') + "###" + SALT_INDEX;
+                apiHeaders['X-VERIFY'] = checksum;
+            } else {
+                console.warn("Warning: V2 Flow missing SALT_KEY for X-VERIFY.");
+            }
 
         } else if (SALT_KEY) {
             // === V1 FLOW (Fallback) ===
