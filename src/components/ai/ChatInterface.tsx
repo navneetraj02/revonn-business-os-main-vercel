@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { cn, compressImage } from '@/lib/utils';
 import { useChatStore } from '@/store/chat-store';
 import { generateAIResponse, generateMultimodalResponse } from '@/lib/ai-assistant';
+import { generateChatTitle } from '@/lib/ai';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 import { auth } from '@/lib/firebase';
@@ -146,9 +147,16 @@ export function ChatInterface() {
             }
 
             // Auto-title session if it's the first user message
+            // Auto-title session if it's the first user message
+            // Auto-title session based on early conversation (first 2 turns)
             const currentMessages = useChatStore.getState().getMessages(sessionId!);
-            if (currentMessages.length <= 2) {
-                updateSessionTitle(sessionId!, userMessage.slice(0, 30) + (userMessage.length > 30 ? '...' : ''));
+            if (currentMessages.length <= 4) {
+                // Generate title asynchronously to not block UI
+                // We pass the history to get a better context-aware title
+                const historyForTitle = currentMessages.map(m => ({ role: m.role, content: m.content }));
+                generateChatTitle(historyForTitle).then(title => {
+                    updateSessionTitle(sessionId!, title);
+                });
             }
 
         } catch (error: any) {

@@ -21,7 +21,7 @@ const navItems = [
 
 export function BottomNav() {
   const location = useLocation();
-  const { setIsAIOpen, hasPermission } = useAppStore();
+  const { hasPermission } = useAppStore();
 
   const handleNavClick = (e: React.MouseEvent, locked: boolean) => {
     if (locked) {
@@ -34,13 +34,7 @@ export function BottomNav() {
 
   return (
     <>
-      <button
-        onClick={() => setIsAIOpen(true)}
-        className="fab animate-pulse-gold"
-        aria-label="Open AI Assistant"
-      >
-        <MessageSquare className="w-6 h-6 text-primary-foreground" />
-      </button>
+
 
       <nav className="fixed bottom-0 inset-x-0 z-30 px-4 pb-4 md:hidden">
         <div className="bg-card/95 backdrop-blur-md rounded-2xl border border-border shadow-lg">

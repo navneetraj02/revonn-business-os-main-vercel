@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Shield, Loader2, Smartphone, Crown } from 'lucide-react';
+import { ChevronLeft, Shield, Loader2, Smartphone, Crown, Tag } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useSubscription } from '@/contexts/SubscriptionContext';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { initiatePhonePePayment, checkPaymentStatus } from '@/lib/payments';
 import { toast } from 'sonner';
 
@@ -18,16 +20,62 @@ export default function Checkout() {
   const { refreshSubscription } = useSubscription();
   const isHindi = language === 'hi';
 
-  const { plan, billingCycle, total, planName } = location.state || {};
+  const { plan, billingCycle, total: originalTotal, planName } = location.state || {}; // Rename total to originalTotal
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [referralCode, setReferralCode] = useState('');
+  const [isCodeApplied, setIsCodeApplied] = useState(false);
+  const [finalTotal, setFinalTotal] = useState(originalTotal);
 
   if (!plan) {
     navigate('/subscription');
     return null;
   }
 
-  const yearlySavings = billingCycle === 'yearly' ? 589 : 0;
+  const yearlySavings = billingCycle === 'yearly' ? (399 * 12 - 3999) : 0;
+
+  // Apply discount logic
+  const [salesCodeDiscount, setSalesCodeDiscount] = useState(0);
+
+  // Apply discount logic
+  const handleApplyCode = async () => {
+    if (!referralCode.trim()) {
+      toast.error("Please enter a code");
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      // Check code in 'sales_agents' collection
+      const agentsRef = collection(db, 'sales_agents');
+      const q = query(agentsRef, where('code', '==', referralCode.trim()));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        setIsCodeApplied(true);
+
+        // Calculate Discount
+        // Monthly: 399 -> 349
+        // Yearly: 3999 -> 2499
+        const targetPrice = billingCycle === 'monthly' ? 349 : 2499;
+        const discountAmount = originalTotal - targetPrice;
+
+        setFinalTotal(targetPrice);
+        setSalesCodeDiscount(discountAmount);
+        toast.success(isHindi ? "सेल्स कोड लागू! छूट मिली।" : "Sales Code Applied! Discount Applied.");
+      } else {
+        toast.error(isHindi ? "अमान्य कोड" : "Invalid Sales Code");
+        setIsCodeApplied(false);
+        setSalesCodeDiscount(0);
+        setFinalTotal(originalTotal);
+      }
+    } catch (error) {
+      console.error("Error verifying code:", error);
+      toast.error("Verification failed");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   // We don't need the external script for the STUB mode
   // useEffect(() => { ... }, []);
@@ -47,13 +95,13 @@ export default function Checkout() {
       // Use user's phone number if available, otherwise fallback (PhonePe requires 10 digits)
       const mobileNumber = user.phoneNumber ? user.phoneNumber.replace('+91', '') : "9999999999";
 
-      const response = await initiatePhonePePayment(total, user.uid, mobileNumber);
+      const response = await initiatePhonePePayment(finalTotal, user.uid, mobileNumber, isCodeApplied ? referralCode : undefined);
 
       const pendingData = {
         transactionId: response.transactionId,
         plan,
         billingCycle,
-        amount: total,
+        amount: finalTotal,
         userId: user.uid,
         timestamp: Date.now()
       };
@@ -157,8 +205,15 @@ export default function Checkout() {
               <span className="text-muted-foreground">
                 {planName} ({billingCycle === 'yearly' ? (isHindi ? 'वार्षिक' : 'Yearly') : (isHindi ? 'मासिक' : 'Monthly')})
               </span>
-              <span className="font-medium">₹{total}</span>
+              <span className="font-medium">₹{originalTotal}</span>
             </div>
+
+            {isCodeApplied && (
+              <div className="flex justify-between text-sm text-success">
+                <span>Discount (Referral)</span>
+                <span className="font-medium">-₹{salesCodeDiscount}</span>
+              </div>
+            )}
 
             {yearlySavings > 0 && (
               <div className="flex justify-between text-sm text-success">
@@ -169,9 +224,35 @@ export default function Checkout() {
 
             <div className="border-t border-border pt-3 flex justify-between">
               <span className="font-bold text-lg">{isHindi ? 'कुल राशि' : 'Total'}</span>
-              <span className="font-bold text-lg text-primary">₹{total}</span>
+              <span className="font-bold text-lg text-primary">₹{finalTotal}</span>
             </div>
           </div>
+        </Card>
+
+        {/* Sales Code Input */}
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Tag className="w-4 h-4 text-primary" />
+            <h3 className="font-semibold text-sm">Have a Referral/Sales Code?</h3>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              placeholder="Enter Code (e.g. SALES25)"
+              value={referralCode}
+              onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+              disabled={isCodeApplied}
+            />
+            <Button
+              variant="secondary"
+              onClick={handleApplyCode}
+              disabled={isCodeApplied || !referralCode}
+            >
+              {isCodeApplied ? 'Applied' : 'Apply'}
+            </Button>
+          </div>
+          {isCodeApplied && (
+            <p className="text-xs text-success mt-2">Code {referralCode} applied! You saved ₹{salesCodeDiscount}.</p>
+          )}
         </Card>
 
         {/* Features Included */}
@@ -236,7 +317,7 @@ export default function Checkout() {
               </div>
             ) : (
               <>
-                {isHindi ? `₹${total} का भुगतान करें` : `Pay ₹${total}`}
+                {isHindi ? `₹${finalTotal} का भुगतान करें` : `Pay ₹${finalTotal}`}
               </>
             )}
           </Button>
@@ -248,7 +329,7 @@ export default function Checkout() {
             }
           </p>
         </div>
-      </div>
-    </AppLayout>
+      </div >
+    </AppLayout >
   );
 }

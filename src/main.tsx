@@ -39,3 +39,12 @@ createRoot(document.getElementById("root")!).render(
         <App />
     </ErrorBoundary>
 );
+
+// Unregister any existing service workers to ensure fresh version load
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+            registration.unregister();
+        }
+    });
+}

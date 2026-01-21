@@ -198,291 +198,182 @@ export default function Auth() {
           </div>
 
           {/* Login Mode Toggle - Only show for login */}
-          {isLogin && (
-            <div className="flex rounded-xl bg-secondary p-1">
-              <button
-                type="button"
-                onClick={() => setLoginMode('owner')}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${loginMode === 'owner'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-                  }`}
-              >
-                <User className="w-4 h-4" />
-                {isHindi ? 'मालिक' : 'Owner'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setLoginMode('staff')}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 ${loginMode === 'staff'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-                  }`}
-              >
-                <Users className="w-4 h-4" />
-                {isHindi ? 'कर्मचारी' : 'Staff'}
-              </button>
-            </div>
-          )}
+
 
           {/* Owner Login/Signup Form */}
-          {(loginMode === 'owner' || !isLogin) && (
-            <form onSubmit={handleOwnerSubmit} className="space-y-4">
-              {/* Phone Number */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  {isHindi ? 'मोबाइल नंबर' : 'Mobile Number'}
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder={isHindi ? '10 अंकों का मोबाइल नंबर' : 'Enter 10-digit mobile number'}
-                    className="input-field pl-12"
-                    maxLength={10}
-                  />
-                </div>
+          <form onSubmit={handleOwnerSubmit} className="space-y-4">
+            {/* Phone Number */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                {isHindi ? 'मोबाइल नंबर' : 'Mobile Number'}
+              </label>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                  placeholder={isHindi ? '10 अंकों का मोबाइल नंबर' : 'Enter 10-digit mobile number'}
+                  className="input-field pl-12"
+                  maxLength={10}
+                />
               </div>
+            </div>
 
-              {/* Owner Name - Only for signup */}
-              {!isLogin && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    {isHindi ? 'मालिक का नाम' : 'Owner Name'}
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type="text"
-                      value={formData.ownerName}
-                      onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
-                      placeholder={isHindi ? 'आपका नाम' : 'Your name'}
-                      className="input-field pl-12"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Shop Name - Only for signup */}
-              {!isLogin && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    {isHindi ? 'व्यवसाय का नाम' : 'Business Name'}
-                  </label>
-                  <div className="relative">
-                    <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type="text"
-                      value={formData.shopName}
-                      onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
-                      placeholder={isHindi ? 'आपकी दुकान/व्यवसाय का नाम' : 'Your shop/business name'}
-                      className="input-field pl-12"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Business Type - Only for signup */}
-              {!isLogin && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    {isHindi ? 'व्यवसाय का प्रकार' : 'Business Type'}
-                  </label>
-                  <div className="relative">
-                    <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <select
-                      value={formData.businessType}
-                      onChange={(e) => setFormData({ ...formData, businessType: e.target.value as 'retail' | 'service' })}
-                      className="input-field pl-12 appearance-none"
-                    >
-                      <option value="retail">{isHindi ? 'रिटेल / दुकान' : 'Retail / Shop'}</option>
-                      <option value="service">{isHindi ? 'सेवा व्यवसाय' : 'Service Business'}</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {/* GSTIN - Only for signup, optional */}
-              {!isLogin && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
-                    GSTIN <span className="text-muted-foreground text-xs">({isHindi ? 'वैकल्पिक' : 'Optional'})</span>
-                  </label>
-                  <div className="relative">
-                    <FileText className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                    <input
-                      type="text"
-                      value={formData.gstin}
-                      onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
-                      placeholder="22AAAAA0000A1Z5"
-                      className="input-field pl-12"
-                      maxLength={15}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Password */}
+            {/* Owner Name - Only for signup */}
+            {!isLogin && (
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  {isHindi ? 'पासवर्ड' : 'Password'}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    placeholder={isLogin
-                      ? (isHindi ? 'अपना पासवर्ड दर्ज करें' : 'Enter your password')
-                      : (isHindi ? 'पासवर्ड बनाएं (कम से कम 6 अक्षर)' : 'Create a password (min 6 chars)')
-                    }
-                    className="input-field pr-12"
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-4 rounded-xl btn-gold font-semibold text-lg disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {isLogin
-                      ? (isHindi ? 'साइन इन हो रहा है...' : 'Signing in...')
-                      : (isHindi ? 'खाता बन रहा है...' : 'Creating account...')
-                    }
-                  </>
-                ) : (
-                  isLogin
-                    ? (isHindi ? 'साइन इन करें' : 'Sign In')
-                    : (isHindi ? 'मुफ़्त खाता बनाएं' : 'Create Free Account')
-                )}
-              </button>
-
-              {/* Demo Info */}
-              {!isLogin && (
-                <p className="text-xs text-center text-muted-foreground">
-                  {isHindi
-                    ? 'मुफ़्त डेमो मोड से शुरू करें। कोई भुगतान नहीं।'
-                    : 'Start with free demo mode. No payment required.'
-                  }
-                </p>
-              )}
-            </form>
-          )}
-
-          {/* Staff Login Form */}
-          {isLogin && loginMode === 'staff' && (
-            <form onSubmit={handleStaffLogin} className="space-y-4">
-              {/* Store Phone Number */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  {isHindi ? 'दुकान का फ़ोन नंबर' : 'Store Phone Number'}
-                </label>
-                <div className="relative">
-                  <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <input
-                    type="tel"
-                    value={staffLoginData.storePhone}
-                    onChange={(e) => setStaffLoginData({ ...staffLoginData, storePhone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
-                    placeholder={isHindi ? 'मालिक का मोबाइल नंबर' : "Owner's mobile number"}
-                    className="input-field pl-12"
-                    maxLength={10}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {isHindi ? 'मालिक से अपनी दुकान का नंबर पूछें' : 'Ask owner for store phone number'}
-                </p>
-              </div>
-
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-1.5">
-                  {isHindi ? 'यूज़रनेम' : 'Username'}
+                  {isHindi ? 'मालिक का नाम' : 'Owner Name'}
                 </label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
                     type="text"
-                    value={staffLoginData.username}
-                    onChange={(e) => setStaffLoginData({ ...staffLoginData, username: e.target.value })}
-                    placeholder={isHindi ? 'अपना यूज़रनेम दर्ज करें' : 'Enter your username'}
+                    value={formData.ownerName}
+                    onChange={(e) => setFormData({ ...formData, ownerName: e.target.value })}
+                    placeholder={isHindi ? 'आपका नाम' : 'Your name'}
                     className="input-field pl-12"
                   />
                 </div>
               </div>
+            )}
 
-              {/* Password */}
+            {/* Shop Name - Only for signup */}
+            {!isLogin && (
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">
-                  {isHindi ? 'पासवर्ड' : 'Password'}
+                  {isHindi ? 'व्यवसाय का नाम' : 'Business Name'}
                 </label>
                 <div className="relative">
+                  <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={staffLoginData.password}
-                    onChange={(e) => setStaffLoginData({ ...staffLoginData, password: e.target.value })}
-                    placeholder={isHindi ? 'अपना पासवर्ड दर्ज करें' : 'Enter your password'}
-                    className="input-field pr-12"
+                    type="text"
+                    value={formData.shopName}
+                    onChange={(e) => setFormData({ ...formData, shopName: e.target.value })}
+                    placeholder={isHindi ? 'आपकी दुकान/व्यवसाय का नाम' : 'Your shop/business name'}
+                    className="input-field pl-12"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
                 </div>
               </div>
+            )}
 
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full py-4 rounded-xl btn-gold font-semibold text-lg disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    {isHindi ? 'लॉगिन हो रहा है...' : 'Logging in...'}
-                  </>
-                ) : (
-                  <>
-                    <Key className="w-5 h-5" />
-                    {isHindi ? 'स्टाफ लॉगिन' : 'Staff Login'}
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+            {/* Business Type - Only for signup */}
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  {isHindi ? 'व्यवसाय का प्रकार' : 'Business Type'}
+                </label>
+                <div className="relative">
+                  <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <select
+                    value={formData.businessType}
+                    onChange={(e) => setFormData({ ...formData, businessType: e.target.value as 'retail' | 'service' })}
+                    className="input-field pl-12 appearance-none"
+                  >
+                    <option value="retail">{isHindi ? 'रिटेल / दुकान' : 'Retail / Shop'}</option>
+                    <option value="service">{isHindi ? 'सेवा व्यवसाय' : 'Service Business'}</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
-          {/* Toggle Login/Signup - Only for owner mode */}
-          {loginMode === 'owner' && (
-            <div className="text-center">
-              <button
-                onClick={() => setIsLogin(!isLogin)}
-                className="text-primary font-medium hover:underline"
-              >
-                {isLogin
-                  ? (isHindi ? "खाता नहीं है? साइन अप करें" : "Don't have an account? Sign Up")
-                  : (isHindi ? 'पहले से खाता है? साइन इन करें' : 'Already have an account? Sign In')
-                }
-              </button>
+            {/* GSTIN - Only for signup, optional */}
+            {!isLogin && (
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">
+                  GSTIN <span className="text-muted-foreground text-xs">({isHindi ? 'वैकल्पिक' : 'Optional'})</span>
+                </label>
+                <div className="relative">
+                  <FileText className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={formData.gstin}
+                    onChange={(e) => setFormData({ ...formData, gstin: e.target.value.toUpperCase() })}
+                    placeholder="22AAAAA0000A1Z5"
+                    className="input-field pl-12"
+                    maxLength={15}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Password */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">
+                {isHindi ? 'पासवर्ड' : 'Password'}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder={isLogin
+                    ? (isHindi ? 'अपना पासवर्ड दर्ज करें' : 'Enter your password')
+                    : (isHindi ? 'पासवर्ड बनाएं (कम से कम 6 अक्षर)' : 'Create a password (min 6 chars)')
+                  }
+                  className="input-field pr-12"
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
-          )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full py-4 rounded-xl btn-gold font-semibold text-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {isLogin
+                    ? (isHindi ? 'साइन इन हो रहा है...' : 'Signing in...')
+                    : (isHindi ? 'खाता बन रहा है...' : 'Creating account...')
+                  }
+                </>
+              ) : (
+                isLogin
+                  ? (isHindi ? 'साइन इन करें' : 'Sign In')
+                  : (isHindi ? 'मुफ़्त खाता बनाएं' : 'Create Free Account')
+              )}
+            </button>
+
+            {/* Demo Info */}
+            {!isLogin && (
+              <p className="text-xs text-center text-muted-foreground">
+                {isHindi
+                  ? 'मुफ़्त डेमो मोड से शुरू करें। कोई भुगतान नहीं।'
+                  : 'Start with free demo mode. No payment required.'
+                }
+              </p>
+            )}
+          </form>
+
+
+          {/* Staff Login Form */}
+
+
+          {/* Toggle Login/Signup */}
+          <div className="text-center">
+            <button
+              onClick={() => setIsLogin(!isLogin)}
+              className="text-primary font-medium hover:underline"
+            >
+              {isLogin
+                ? (isHindi ? "खाता नहीं है? साइन अप करें" : "Don't have an account? Sign Up")
+                : (isHindi ? 'पहले से खाता है? साइन इन करें' : 'Already have an account? Sign In')
+              }
+            </button>
+          </div>
+
         </div>
       </div>
 

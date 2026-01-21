@@ -74,6 +74,46 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         }
     };
 
+    // Auto-update titles for existing chats
+    useEffect(() => {
+        const updateTitles = async () => {
+            if (!currentUser) return;
+
+            const userSessions = sessions.filter(s => s.userId === currentUser.uid);
+
+            // Find sessions that need a title update
+            const headlessSessions = userSessions.filter(s =>
+                (s.title === 'New Conversation' || s.title === 'New Chat') &&
+                s.messages.length > 0 &&
+                s.messages.some(m => m.role === 'user') // Must have a user message
+            );
+
+            // Process one by one to avoid rate limits
+            for (const session of headlessSessions) {
+                const firstUserMsg = session.messages.find(m => m.role === 'user');
+                if (firstUserMsg) {
+                    try {
+                        // We use the imported function from @/lib/ai
+                        // Dynamic import to avoid circular dependency issues if any, 
+                        // though here we can just assume it's available or import at top.
+                        // Ideally we should import it at the top.
+                        const { generateChatTitle } = await import('@/lib/ai');
+                        // Pass available history (or just the first message format if that's what we have)
+                        const history = session.messages.map(m => ({ role: m.role, content: m.content }));
+                        const newTitle = await generateChatTitle(history);
+                        useChatStore.getState().updateSessionTitle(session.id, newTitle);
+                    } catch (e) {
+                        console.error("Failed to auto-update title for session", session.id, e);
+                    }
+                }
+            }
+        };
+
+        // Run with a small delay to not block initial render
+        const timeout = setTimeout(updateTitles, 1000);
+        return () => clearTimeout(timeout);
+    }, [sessions, currentUser]);
+
     return (
         <div className={cn("flex flex-col h-full bg-card border-r w-64", className)}>
             {/* Header */}
